@@ -1,4 +1,4 @@
-mport React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { MapPin, Camera, Mic2, Sparkles, Copy, Check, ListChecks, Lightbulb, Clock, Hash, RotateCcw, Backpack, Plane, Compass } from "lucide-react";
 
 // ── Trip mode: your Osaka–Kyoto–Cebu stops as quick picks ───────────────────
