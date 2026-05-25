@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MapPin, Camera, Mic2, Sparkles, Copy, Check, ListChecks, Lightbulb, Clock, Hash, RotateCcw, Backpack, Plane, Compass } from "lucide-react";
+import { MapPin, Camera, Mic2, Sparkles, Copy, Check, ListChecks, Lightbulb, Clock, Hash, RotateCcw, Backpack, Plane, Compass, Printer } from "lucide-react";
 
 // ── Trip mode: your Osaka–Kyoto–Cebu stops as quick picks ───────────────────
 const TRIP_STOPS = [
@@ -152,8 +152,103 @@ export default function VlogScout() {
 
   const fullScript = pack ? `${pack.script.hook}\n\n${pack.script.body}\n\n${pack.script.signoff}` : "";
 
+  function printPack() {
+    if (!pack) return;
+    const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const li = (arr) => (arr || []).map((x) => `<li>${esc(x)}</li>`).join("");
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(pack.place)} — Vlog Prep</title>
+      <style>
+        body { font-family: Georgia, 'Times New Roman', serif; color:#222; max-width:720px; margin:24px auto; padding:0 24px; line-height:1.6; }
+        h1 { font-size:24px; margin:0 0 2px; }
+        .one { font-style:italic; color:#555; margin:0 0 18px; }
+        h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#8a6d3b; border-bottom:1px solid #ddd; padding-bottom:3px; margin:18px 0 8px; }
+        ul { margin:4px 0; padding-left:20px; }
+        li { margin-bottom:3px; }
+        .meta { display:flex; gap:24px; margin:8px 0; }
+        .meta div { flex:1; }
+        .label { font-weight:bold; }
+        .script p { margin:4px 0 12px; }
+        .tag { font-size:11px; font-weight:bold; letter-spacing:.06em; color:#8a6d3b; }
+        .check { list-style:none; padding-left:0; }
+        .check li:before { content:"\\2610  "; }
+        .foot { margin-top:28px; padding-top:10px; border-top:1px solid #ddd; font-size:11px; color:#999; text-align:center; }
+        @media print { body { margin:0; } }
+      </style></head><body>
+      <h1>${esc(pack.place)}</h1>
+      <p class="one">${esc(pack.oneLiner)}</p>
+      <h2>Worth knowing</h2><ul>${li(pack.facts)}</ul>
+      <div class="meta">
+        <div><span class="label">Best time to film:</span> ${esc(pack.bestTime)}</div>
+        <div><span class="label">Local etiquette:</span> ${esc(pack.etiquette)}</div>
+      </div>
+      <h2>Script</h2><div class="script">
+        <div class="tag">HOOK</div><p>${esc(pack.script.hook)}</p>
+        <div class="tag">BODY</div><p>${esc(pack.script.body)}</p>
+        <div class="tag">SIGN-OFF</div><p>${esc(pack.script.signoff)}</p>
+      </div>
+      <h2>Shot list</h2><ul class="check">${li(pack.shotList)}</ul>
+      <h2>Gear &amp; prep</h2><ul class="check">${li(pack.gear)}</ul>
+      <h2>Captions</h2><ul>${li(pack.captions)}</ul>
+      <div class="foot">Vlog Scout — Developed by Kerry Marion</div>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 350);
+  }
+
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Georgia, 'Times New Roman', serif" }}>
+    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Georgia, 'Times New Roman', serif", position: "relative", overflow: "hidden" }}>
+      {/* Faint travel / vlogging background motifs */}
+      <div aria-hidden="true" style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, opacity: 0.5 }}>
+        <svg width="100%" height="100%" style={{ position: "absolute", inset: 0 }}>
+          <defs>
+            <pattern id="dots" width="34" height="34" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r="1" fill={C.line} opacity="0.4" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#dots)" />
+        </svg>
+        {/* compass — top right */}
+        <svg viewBox="0 0 100 100" style={{ position: "absolute", top: "4%", right: "-3%", width: 220, height: 220, opacity: 0.06 }}>
+          <circle cx="50" cy="50" r="46" fill="none" stroke={C.gold} strokeWidth="1.5" />
+          <circle cx="50" cy="50" r="38" fill="none" stroke={C.gold} strokeWidth="0.6" />
+          <polygon points="50,16 56,50 50,84 44,50" fill={C.gold} />
+          <circle cx="50" cy="50" r="3" fill={C.gold} />
+          <text x="50" y="12" fill={C.gold} fontSize="7" textAnchor="middle" fontFamily="Georgia">N</text>
+        </svg>
+        {/* camera — left mid */}
+        <svg viewBox="0 0 120 90" style={{ position: "absolute", top: "34%", left: "-4%", width: 200, height: 150, opacity: 0.05 }}>
+          <rect x="8" y="22" width="104" height="60" rx="8" fill="none" stroke={C.green} strokeWidth="2" />
+          <rect x="40" y="12" width="34" height="14" rx="3" fill="none" stroke={C.green} strokeWidth="2" />
+          <circle cx="60" cy="52" r="18" fill="none" stroke={C.green} strokeWidth="2" />
+          <circle cx="60" cy="52" r="9" fill="none" stroke={C.green} strokeWidth="1.5" />
+          <circle cx="96" cy="34" r="3" fill={C.green} />
+        </svg>
+        {/* film strip — bottom right */}
+        <svg viewBox="0 0 160 60" style={{ position: "absolute", bottom: "8%", right: "2%", width: 260, height: 100, opacity: 0.05, transform: "rotate(-12deg)" }}>
+          <rect x="2" y="8" width="156" height="44" rx="3" fill="none" stroke={C.red} strokeWidth="2" />
+          {[14, 40, 66, 92, 118, 144].map((x) => (
+            <g key={x}>
+              <rect x={x - 5} y="11" width="10" height="6" fill={C.red} opacity="0.7" />
+              <rect x={x - 5} y="43" width="10" height="6" fill={C.red} opacity="0.7" />
+            </g>
+          ))}
+        </svg>
+        {/* location pin — mid right */}
+        <svg viewBox="0 0 60 80" style={{ position: "absolute", top: "60%", right: "10%", width: 90, height: 120, opacity: 0.055 }}>
+          <path d="M30 4 C14 4 4 16 4 30 C4 50 30 76 30 76 C30 76 56 50 56 30 C56 16 46 4 30 4 Z" fill="none" stroke={C.gold} strokeWidth="2.5" />
+          <circle cx="30" cy="29" r="9" fill="none" stroke={C.gold} strokeWidth="2.5" />
+        </svg>
+        {/* paper plane — top left */}
+        <svg viewBox="0 0 80 70" style={{ position: "absolute", top: "12%", left: "8%", width: 120, height: 105, opacity: 0.05 }}>
+          <path d="M4 34 L76 6 L46 64 L38 42 Z" fill="none" stroke={C.green} strokeWidth="2" strokeLinejoin="round" />
+          <path d="M38 42 L76 6" fill="none" stroke={C.green} strokeWidth="1.2" />
+        </svg>
+      </div>
+
       <style>{`
         @keyframes fadeUp { from { opacity:0; transform: translateY(12px);} to {opacity:1; transform:none;} }
         .fade-up { animation: fadeUp .5s ease both; }
@@ -172,7 +267,7 @@ export default function VlogScout() {
         }
       `}</style>
 
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px 56px" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px 56px", position: "relative", zIndex: 1 }}>
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-3" style={{ background: C.greenDeep, color: C.text, fontSize: 11, letterSpacing: "0.18em" }}>
@@ -347,11 +442,18 @@ export default function VlogScout() {
                 </div>
               </Section>
 
-              <button onClick={() => { setPack(null); setLocation(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                className="inline-flex items-center gap-2"
-                style={{ marginTop: 8, fontSize: 14, color: C.gold, background: "none", border: "none", cursor: "pointer", fontFamily: "Georgia, serif" }}>
-                <RotateCcw size={15} /> Scout another spot
-              </button>
+              <div className="flex items-center gap-4" style={{ marginTop: 8 }}>
+                <button onClick={() => { setPack(null); setLocation(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  className="inline-flex items-center gap-2"
+                  style={{ fontSize: 14, color: C.gold, background: "none", border: "none", cursor: "pointer", fontFamily: "Georgia, serif" }}>
+                  <RotateCcw size={15} /> Scout another spot
+                </button>
+                <button onClick={printPack}
+                  className="inline-flex items-center gap-2"
+                  style={{ fontSize: 14, color: C.green, background: "none", border: "none", cursor: "pointer", fontFamily: "Georgia, serif" }}>
+                  <Printer size={15} /> Print this pack
+                </button>
+              </div>
             </div>
           </div>
         )}
