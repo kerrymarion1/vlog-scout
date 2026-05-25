@@ -15,7 +15,7 @@ The app has two halves:
 The frontend calls `/api/generate`, NOT Anthropic directly. This matters: your API key
 lives only on the server, so it's never visible to anyone who opens the page. Putting an
 API key in frontend code would let anyone read it and run up your bill — so don't.
-
+ 
 ---
 
 ## Run it locally
