@@ -74,7 +74,7 @@ Be concrete and specific to THIS location. Avoid generic filler. If the location
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 1500,
         messages: [{ role: "user", content: prompt }],
       }),
