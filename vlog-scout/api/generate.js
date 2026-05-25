@@ -25,7 +25,16 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Server is missing ANTHROPIC_API_KEY." });
   }
 
-  const { location, vibe, length } = req.body || {};
+  // Vercel sometimes delivers req.body already parsed, sometimes as a raw
+  // string, sometimes undefined — parse defensively so the function never
+  // crashes on a malformed body.
+  let body = req.body;
+  if (typeof body === "string") {
+    try { body = JSON.parse(body); } catch { body = {}; }
+  }
+  if (!body || typeof body !== "object") body = {};
+
+  const { location, vibe, length } = body;
   if (!location || !location.trim()) {
     return res.status(400).json({ error: "A location is required." });
   }
@@ -73,7 +82,11 @@ Be concrete and specific to THIS location. Avoid generic filler. If the location
 
     if (!anthropicRes.ok) {
       const detail = await anthropicRes.text();
-      return res.status(502).json({ error: "Upstream error from Anthropic.", detail });
+      return res.status(502).json({
+        error: `Anthropic returned ${anthropicRes.status}.`,
+        status: anthropicRes.status,
+        detail,
+      });
     }
 
     const data = await anthropicRes.json();
@@ -85,7 +98,16 @@ Be concrete and specific to THIS location. Avoid generic filler. If the location
     const clean = text.replace(/```json|```/g, "").trim();
     const start = clean.indexOf("{");
     const end = clean.lastIndexOf("}");
-    const pack = JSON.parse(clean.slice(start, end + 1));
+    if (start === -1 || end === -1) {
+      return res.status(500).json({ error: "Anthropic did not return valid JSON.", raw: text.slice(0, 500) });
+    }
+
+    let pack;
+    try {
+      pack = JSON.parse(clean.slice(start, end + 1));
+    } catch (parseErr) {
+      return res.status(500).json({ error: "Could not parse the prep pack.", raw: text.slice(0, 500) });
+    }
 
     return res.status(200).json(pack);
   } catch (err) {
