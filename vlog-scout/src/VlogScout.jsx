@@ -202,7 +202,7 @@ export default function VlogScout() {
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Georgia, 'Times New Roman', serif", position: "relative", overflow: "hidden" }}>
       {/* Faint travel / vlogging background motifs */}
-      <div aria-hidden="true" style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, opacity: 0.5 }}>
+      <div aria-hidden="true" style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, opacity: 0.8 }}>
         <svg width="100%" height="100%" style={{ position: "absolute", inset: 0 }}>
           <defs>
             <pattern id="dots" width="34" height="34" patternUnits="userSpaceOnUse">
@@ -212,7 +212,7 @@ export default function VlogScout() {
           <rect width="100%" height="100%" fill="url(#dots)" />
         </svg>
         {/* compass — top right */}
-        <svg viewBox="0 0 100 100" style={{ position: "absolute", top: "4%", right: "-3%", width: 220, height: 220, opacity: 0.06 }}>
+        <svg viewBox="0 0 100 100" style={{ position: "absolute", top: "4%", right: "-3%", width: 220, height: 220, opacity: 0.11 }}>
           <circle cx="50" cy="50" r="46" fill="none" stroke={C.gold} strokeWidth="1.5" />
           <circle cx="50" cy="50" r="38" fill="none" stroke={C.gold} strokeWidth="0.6" />
           <polygon points="50,16 56,50 50,84 44,50" fill={C.gold} />
@@ -220,7 +220,7 @@ export default function VlogScout() {
           <text x="50" y="12" fill={C.gold} fontSize="7" textAnchor="middle" fontFamily="Georgia">N</text>
         </svg>
         {/* camera — left mid */}
-        <svg viewBox="0 0 120 90" style={{ position: "absolute", top: "34%", left: "-4%", width: 200, height: 150, opacity: 0.05 }}>
+        <svg viewBox="0 0 120 90" style={{ position: "absolute", top: "34%", left: "-4%", width: 200, height: 150, opacity: 0.095 }}>
           <rect x="8" y="22" width="104" height="60" rx="8" fill="none" stroke={C.green} strokeWidth="2" />
           <rect x="40" y="12" width="34" height="14" rx="3" fill="none" stroke={C.green} strokeWidth="2" />
           <circle cx="60" cy="52" r="18" fill="none" stroke={C.green} strokeWidth="2" />
@@ -228,7 +228,7 @@ export default function VlogScout() {
           <circle cx="96" cy="34" r="3" fill={C.green} />
         </svg>
         {/* film strip — bottom right */}
-        <svg viewBox="0 0 160 60" style={{ position: "absolute", bottom: "8%", right: "2%", width: 260, height: 100, opacity: 0.05, transform: "rotate(-12deg)" }}>
+        <svg viewBox="0 0 160 60" style={{ position: "absolute", bottom: "8%", right: "2%", width: 260, height: 100, opacity: 0.095, transform: "rotate(-12deg)" }}>
           <rect x="2" y="8" width="156" height="44" rx="3" fill="none" stroke={C.red} strokeWidth="2" />
           {[14, 40, 66, 92, 118, 144].map((x) => (
             <g key={x}>
@@ -238,12 +238,12 @@ export default function VlogScout() {
           ))}
         </svg>
         {/* location pin — mid right */}
-        <svg viewBox="0 0 60 80" style={{ position: "absolute", top: "60%", right: "10%", width: 90, height: 120, opacity: 0.055 }}>
+        <svg viewBox="0 0 60 80" style={{ position: "absolute", top: "60%", right: "10%", width: 90, height: 120, opacity: 0.1 }}>
           <path d="M30 4 C14 4 4 16 4 30 C4 50 30 76 30 76 C30 76 56 50 56 30 C56 16 46 4 30 4 Z" fill="none" stroke={C.gold} strokeWidth="2.5" />
           <circle cx="30" cy="29" r="9" fill="none" stroke={C.gold} strokeWidth="2.5" />
         </svg>
         {/* paper plane — top left */}
-        <svg viewBox="0 0 80 70" style={{ position: "absolute", top: "12%", left: "8%", width: 120, height: 105, opacity: 0.05 }}>
+        <svg viewBox="0 0 80 70" style={{ position: "absolute", top: "12%", left: "8%", width: 120, height: 105, opacity: 0.095 }}>
           <path d="M4 34 L76 6 L46 64 L38 42 Z" fill="none" stroke={C.green} strokeWidth="2" strokeLinejoin="round" />
           <path d="M38 42 L76 6" fill="none" stroke={C.green} strokeWidth="1.2" />
         </svg>
