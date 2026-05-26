@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MapPin, Camera, Mic2, Sparkles, Copy, Check, ListChecks, Lightbulb, Clock, Hash, RotateCcw, Backpack, Plane, Compass, Printer } from "lucide-react";
+import { MapPin, Camera, Mic2, Sparkles, Copy, Check, ListChecks, Lightbulb, Clock, Hash, RotateCcw, Backpack, Plane, Compass, Printer, Bookmark, BookmarkCheck, Download, Shuffle, Trash2, FolderOpen, X } from "lucide-react";
 
 // ── Trip mode: your Osaka–Kyoto–Cebu stops as quick picks ───────────────────
 const TRIP_STOPS = [
@@ -129,9 +129,52 @@ export default function VlogScout() {
   const [vibe, setVibe] = useState("casual");
   const [length, setLength] = useState("medium");
   const [loading, setLoading] = useState(false);
+  const [rerolling, setRerolling] = useState(false);
   const [error, setError] = useState("");
   const [pack, setPack] = useState(null);
+  const [saved, setSaved] = useState([]);
+  const [showSaved, setShowSaved] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  const [copiedAll, setCopiedAll] = useState(false);
   const resultRef = useRef(null);
+
+  const STORAGE_KEY = "vlogScoutSavedPacks";
+
+  // Load saved packs from this device on first render
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setSaved(JSON.parse(raw));
+    } catch { /* localStorage unavailable (e.g. preview) — start empty */ }
+  }, []);
+
+  function persist(list) {
+    setSaved(list);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch { /* ignore */ }
+  }
+
+  function savePack() {
+    if (!pack) return;
+    const entry = { ...pack, _id: Date.now(), _vibe: vibe, _length: length, _savedAt: new Date().toISOString() };
+    // de-dupe by place name: replace an existing save for the same place
+    const without = saved.filter((p) => p.place !== entry.place);
+    persist([entry, ...without]);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 1600);
+  }
+
+  function deleteSaved(id) {
+    persist(saved.filter((p) => p._id !== id));
+  }
+
+  function openSaved(p) {
+    setPack(p);
+    setVibe(p._vibe || "casual");
+    setLength(p._length || "medium");
+    setLocation(p.place || "");
+    setShowSaved(false);
+    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  }
 
   async function run() {
     if (!location.trim()) return;
@@ -150,7 +193,63 @@ export default function VlogScout() {
     }
   }
 
+  // Re-roll just the script, keeping the same research
+  async function reroll() {
+    if (!pack) return;
+    setRerolling(true);
+    setError("");
+    try {
+      const result = await generatePrep(pack.place, vibe, length);
+      setPack((prev) => ({ ...result, place: prev.place }));
+    } catch (e) {
+      setError("Couldn't re-roll — try again.");
+    } finally {
+      setRerolling(false);
+    }
+  }
+
   const fullScript = pack ? `${pack.script.hook}\n\n${pack.script.body}\n\n${pack.script.signoff}` : "";
+
+  // Estimated read-aloud time at ~150 words/min
+  const readTime = (() => {
+    if (!pack) return "";
+    const words = fullScript.trim().split(/\s+/).length;
+    const secs = Math.round((words / 150) * 60);
+    return `~${secs}s read`;
+  })();
+
+  // Build a plain-text version of the whole pack for copy-all
+  function packAsText(p = pack) {
+    if (!p) return "";
+    return [
+      p.place,
+      p.oneLiner,
+      "",
+      "WORTH KNOWING",
+      ...(p.facts || []).map((f) => `- ${f}`),
+      "",
+      `BEST TIME: ${p.bestTime}`,
+      `ETIQUETTE: ${p.etiquette}`,
+      "",
+      "SCRIPT",
+      p.script.hook, "", p.script.body, "", p.script.signoff,
+      "",
+      "SHOT LIST",
+      ...(p.shotList || []).map((s, i) => `${i + 1}. ${s}`),
+      "",
+      "GEAR & PREP",
+      ...(p.gear || []).map((g) => `- ${g}`),
+      "",
+      "CAPTIONS",
+      ...(p.captions || []).map((c) => `- ${c}`),
+    ].join("\n");
+  }
+
+  function copyAll() {
+    navigator.clipboard?.writeText(packAsText());
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 1600);
+  }
 
   function printPack() {
     if (!pack) return;
@@ -197,6 +296,62 @@ export default function VlogScout() {
     w.document.close();
     w.focus();
     setTimeout(() => w.print(), 350);
+  }
+
+  // Download every saved pack as one self-contained HTML file for offline use
+  function downloadAll() {
+    const list = saved.length ? saved : (pack ? [pack] : []);
+    if (!list.length) return;
+    const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const li = (arr) => (arr || []).map((x) => `<li>${esc(x)}</li>`).join("");
+    const sections = list.map((p) => `
+      <article>
+        <h1>${esc(p.place)}</h1>
+        <p class="one">${esc(p.oneLiner)}</p>
+        <h2>Worth knowing</h2><ul>${li(p.facts)}</ul>
+        <p><b>Best time:</b> ${esc(p.bestTime)}<br><b>Etiquette:</b> ${esc(p.etiquette)}</p>
+        <h2>Script</h2>
+        <div class="tag">HOOK</div><p>${esc(p.script?.hook)}</p>
+        <div class="tag">BODY</div><p>${esc(p.script?.body)}</p>
+        <div class="tag">SIGN-OFF</div><p>${esc(p.script?.signoff)}</p>
+        <h2>Shot list</h2><ul class="check">${li(p.shotList)}</ul>
+        <h2>Gear &amp; prep</h2><ul class="check">${li(p.gear)}</ul>
+        <h2>Captions</h2><ul>${li(p.captions)}</ul>
+      </article>`).join('<hr>');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>My Vlog Prep — Osaka · Kyoto · Cebu</title>
+      <style>
+        body { font-family: Georgia, serif; color:#222; max-width:760px; margin:0 auto; padding:24px; line-height:1.6; }
+        .head { text-align:center; margin-bottom:24px; }
+        .head h0 { font-size:13px; letter-spacing:.2em; color:#8a6d3b; }
+        article { margin:24px 0; }
+        h1 { font-size:24px; margin:0 0 2px; }
+        .one { font-style:italic; color:#555; margin:0 0 16px; }
+        h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#8a6d3b; border-bottom:1px solid #ddd; padding-bottom:3px; margin:16px 0 8px; }
+        ul { margin:4px 0; padding-left:20px; } li { margin-bottom:3px; }
+        .tag { font-size:11px; font-weight:bold; letter-spacing:.06em; color:#8a6d3b; }
+        .check { list-style:none; padding-left:0; } .check li:before { content:"\\2610  "; }
+        hr { border:none; border-top:2px dashed #ddd; margin:32px 0; }
+        .foot { margin-top:32px; padding-top:12px; border-top:1px solid #ddd; font-size:11px; color:#999; text-align:center; }
+        .toc { background:#f7f1e3; border-radius:8px; padding:12px 18px; }
+        @media print { body { margin:0; } }
+      </style></head><body>
+      <div class="head"><div style="font-size:13px;letter-spacing:.2em;color:#8a6d3b">VLOG SCOUT · FIELD KIT</div>
+      <h1 style="border:none">My Prep Packs</h1>
+      <p class="one">${list.length} location${list.length > 1 ? "s" : ""} · saved for offline use</p></div>
+      <div class="toc"><b>Inside:</b> ${list.map((p) => esc(p.place)).join(" · ")}</div>
+      ${sections}
+      <div class="foot">Vlog Scout — Developed by Kerry Marion</div>
+      </body></html>`;
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "vlog-prep-packs.html";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
   return (
@@ -275,7 +430,47 @@ export default function VlogScout() {
           </div>
           <h1 style={{ fontSize: 38, color: C.text, margin: 0, fontWeight: 700, letterSpacing: "-0.01em" }}>Vlog Scout</h1>
           <p style={{ color: C.textDim, marginTop: 8, fontSize: 15, fontStyle: "italic" }}>Research the place. Write the script. Shoot it cold.</p>
+          {saved.length > 0 && (
+            <button onClick={() => setShowSaved(true)}
+              className="inline-flex items-center gap-2"
+              style={{ marginTop: 14, fontSize: 13, color: C.gold, background: "transparent", border: `1px solid ${C.line}`, borderRadius: 999, padding: "6px 14px", cursor: "pointer", fontFamily: "Georgia, serif" }}>
+              <FolderOpen size={14} /> My scouted spots ({saved.length})
+            </button>
+          )}
         </div>
+
+        {/* Saved spots panel */}
+        {showSaved && (
+          <div className="fade-up" style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, padding: 20, marginBottom: 20 }}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold uppercase" style={{ color: C.textDim, letterSpacing: "0.08em" }}>My scouted spots</h3>
+              <button onClick={() => setShowSaved(false)} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><X size={18} /></button>
+            </div>
+            {saved.length === 0 ? (
+              <p style={{ color: C.textFaint, fontSize: 14, fontStyle: "italic" }}>No saved spots yet.</p>
+            ) : (
+              <div className="grid gap-2">
+                {saved.map((p) => (
+                  <div key={p._id} className="flex items-center justify-between gap-3" style={{ background: C.cardSoft, borderRadius: 8, padding: "10px 12px" }}>
+                    <button onClick={() => openSaved(p)} style={{ flex: 1, textAlign: "left", background: "none", border: "none", cursor: "pointer", fontFamily: "Georgia, serif" }}>
+                      <div style={{ color: C.text, fontSize: 15, fontWeight: 600 }}>{p.place}</div>
+                      <div style={{ color: C.textFaint, fontSize: 12, fontStyle: "italic" }}>{p.oneLiner}</div>
+                    </button>
+                    <button onClick={() => deleteSaved(p._id)} title="Remove" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><Trash2 size={15} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={downloadAll}
+              className="inline-flex items-center gap-2"
+              style={{ marginTop: 14, fontSize: 14, color: C.green, background: "transparent", border: `1px solid ${C.green}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontFamily: "Georgia, serif" }}>
+              <Download size={15} /> Download all for offline ({saved.length})
+            </button>
+            <p style={{ color: C.textFaint, fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>
+              Saves one file to your device with every pack — open it anytime, no signal needed.
+            </p>
+          </div>
+        )}
 
         {/* Input card */}
         <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.line}`, padding: 24 }}>
@@ -400,6 +595,16 @@ export default function VlogScout() {
 
               <Section icon={<Mic2 size={17} />} title="Your script" accent={C.green} copy={fullScript}>
                 <div style={{ background: C.cardSoft, borderRadius: 10, padding: 16, borderLeft: `3px solid ${C.green}` }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="inline-flex items-center gap-1" style={{ fontSize: 12, color: C.gold, fontStyle: "italic" }}>
+                      <Clock size={12} /> {readTime}
+                    </span>
+                    <button onClick={reroll} disabled={rerolling}
+                      className="inline-flex items-center gap-1.5"
+                      style={{ fontSize: 12, color: rerolling ? C.textFaint : C.green, background: "transparent", border: `1px solid ${C.line}`, borderRadius: 999, padding: "4px 10px", cursor: rerolling ? "default" : "pointer", fontFamily: "Georgia, serif" }}>
+                      <Shuffle size={12} /> {rerolling ? "Re-rolling…" : "Another take"}
+                    </button>
+                  </div>
                   <div style={{ fontSize: 11, color: C.gold, fontWeight: 600, letterSpacing: "0.08em" }}>HOOK</div>
                   <p style={{ color: C.text, fontSize: 16, lineHeight: 1.6, margin: "4px 0 14px", fontWeight: 600 }}>{pack.script.hook}</p>
                   <div style={{ fontSize: 11, color: C.gold, fontWeight: 600, letterSpacing: "0.08em" }}>BODY</div>
@@ -442,16 +647,31 @@ export default function VlogScout() {
                 </div>
               </Section>
 
-              <div className="flex items-center gap-4" style={{ marginTop: 8 }}>
-                <button onClick={() => { setPack(null); setLocation(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              <div className="flex flex-wrap items-center gap-4" style={{ marginTop: 8 }}>
+                <button onClick={savePack}
                   className="inline-flex items-center gap-2"
-                  style={{ fontSize: 14, color: C.gold, background: "none", border: "none", cursor: "pointer", fontFamily: "Georgia, serif" }}>
-                  <RotateCcw size={15} /> Scout another spot
+                  style={{ fontSize: 14, color: justSaved ? C.green : C.gold, background: "none", border: "none", cursor: "pointer", fontFamily: "Georgia, serif" }}>
+                  {justSaved ? <BookmarkCheck size={15} /> : <Bookmark size={15} />} {justSaved ? "Saved" : "Save this spot"}
+                </button>
+                <button onClick={copyAll}
+                  className="inline-flex items-center gap-2"
+                  style={{ fontSize: 14, color: copiedAll ? C.green : C.gold, background: "none", border: "none", cursor: "pointer", fontFamily: "Georgia, serif" }}>
+                  {copiedAll ? <Check size={15} /> : <Copy size={15} />} {copiedAll ? "Copied all" : "Copy everything"}
                 </button>
                 <button onClick={printPack}
                   className="inline-flex items-center gap-2"
                   style={{ fontSize: 14, color: C.green, background: "none", border: "none", cursor: "pointer", fontFamily: "Georgia, serif" }}>
-                  <Printer size={15} /> Print this pack
+                  <Printer size={15} /> Print
+                </button>
+                <button onClick={downloadAll}
+                  className="inline-flex items-center gap-2"
+                  style={{ fontSize: 14, color: C.green, background: "none", border: "none", cursor: "pointer", fontFamily: "Georgia, serif" }}>
+                  <Download size={15} /> Download offline
+                </button>
+                <button onClick={() => { setPack(null); setLocation(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  className="inline-flex items-center gap-2"
+                  style={{ fontSize: 14, color: C.textDim, background: "none", border: "none", cursor: "pointer", fontFamily: "Georgia, serif" }}>
+                  <RotateCcw size={15} /> Scout another
                 </button>
               </div>
             </div>
