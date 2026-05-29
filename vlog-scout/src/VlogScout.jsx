@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MapPin, Camera, Mic2, Sparkles, Copy, Check, ListChecks, Lightbulb, Clock, Hash, RotateCcw, Backpack, Plane, Compass, Printer, Bookmark, BookmarkCheck, Download, Shuffle, Trash2, FolderOpen, X } from "lucide-react";
+import { MapPin, Camera, Mic2, Sparkles, Copy, Check, ListChecks, Lightbulb, Clock, Hash, RotateCcw, Backpack, Plane, Compass, Printer, Bookmark, BookmarkCheck, Download, Shuffle, Trash2, FolderOpen, X, Play, Pause, Square, Volume2, Calendar, CalendarPlus, ChevronRight, CheckCircle2, Circle } from "lucide-react";
 
 // ── Trip mode: Osaka–Kyoto–Cebu stops as quick picks ────────────────────────
 const TRIP_STOPS = [
@@ -114,6 +114,98 @@ function ScoutingAnimation() {
   );
 }
 
+// ── ScriptReader: built-in speech-synth voice mode ─────────────────────────
+function ScriptReader({ text }) {
+  const [state, setState] = useState("idle"); // idle | playing | paused
+  const [rate, setRate] = useState(1);        // 0.85 / 1 / 1.2
+  const supported = typeof window !== "undefined" && "speechSynthesis" in window;
+  const uttRef = useRef(null);
+
+  // Stop any in-flight reading when the script changes or the component unmounts
+  useEffect(() => {
+    return () => { if (supported) window.speechSynthesis.cancel(); };
+  }, [text, supported]);
+
+  function play() {
+    if (!supported || !text) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = rate;
+    u.pitch = 1;
+    u.onend = () => setState("idle");
+    u.onerror = () => setState("idle");
+    uttRef.current = u;
+    window.speechSynthesis.speak(u);
+    setState("playing");
+  }
+  function pause() { if (!supported) return; window.speechSynthesis.pause(); setState("paused"); }
+  function resume() { if (!supported) return; window.speechSynthesis.resume(); setState("playing"); }
+  function stop() { if (!supported) return; window.speechSynthesis.cancel(); setState("idle"); }
+  function setSpeed(r) {
+    setRate(r);
+    if (state !== "idle") { stop(); setTimeout(() => { setRate(r); play(); }, 50); }
+  }
+
+  if (!supported) return null;
+
+  const speeds = [
+    { id: 0.85, label: "Slow" },
+    { id: 1,    label: "Natural" },
+    { id: 1.2,  label: "Quick" },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 mb-3" style={{ paddingBottom: 12, borderBottom: `1px dashed ${C.lineSoft}` }}>
+      <span className="inline-flex items-center gap-1.5" style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.gold, letterSpacing: "0.08em" }}>
+        <Volume2 size={13} /> READ ALOUD
+      </span>
+      {state === "idle" && (
+        <button onClick={play} className="vs-chip inline-flex items-center gap-1.5"
+          style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.green, background: "transparent", border: `1px solid ${C.green}`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", letterSpacing: "0.05em" }}>
+          <Play size={11} /> PLAY
+        </button>
+      )}
+      {state === "playing" && (
+        <>
+          <button onClick={pause} className="vs-chip inline-flex items-center gap-1.5"
+            style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.gold, background: "transparent", border: `1px solid ${C.gold}`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", letterSpacing: "0.05em" }}>
+            <Pause size={11} /> PAUSE
+          </button>
+          <button onClick={stop} className="vs-chip inline-flex items-center gap-1.5"
+            style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.textDim, background: "transparent", border: `1px solid ${C.line}`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", letterSpacing: "0.05em" }}>
+            <Square size={10} /> STOP
+          </button>
+        </>
+      )}
+      {state === "paused" && (
+        <>
+          <button onClick={resume} className="vs-chip inline-flex items-center gap-1.5"
+            style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.green, background: "transparent", border: `1px solid ${C.green}`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", letterSpacing: "0.05em" }}>
+            <Play size={11} /> RESUME
+          </button>
+          <button onClick={stop} className="vs-chip inline-flex items-center gap-1.5"
+            style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.textDim, background: "transparent", border: `1px solid ${C.line}`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", letterSpacing: "0.05em" }}>
+            <Square size={10} /> STOP
+          </button>
+        </>
+      )}
+      <span style={{ flex: 1 }} />
+      <div className="flex items-center gap-1">
+        {speeds.map((s) => {
+          const on = rate === s.id;
+          return (
+            <button key={s.id} onClick={() => setSpeed(s.id)}
+              style={{ fontSize: 10, fontFamily: FONT_TYPE, padding: "3px 9px", borderRadius: 999, cursor: "pointer", letterSpacing: "0.06em",
+                border: on ? `1px solid ${C.gold}` : `1px solid ${C.lineSoft}`, background: on ? "#2a2418" : "transparent", color: on ? C.gold : C.textDim }}>
+              {s.label.toUpperCase()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function VlogScout() {
   const [location, setLocation] = useState("");
   const [vibe, setVibe] = useState("casual");
@@ -126,14 +218,51 @@ export default function VlogScout() {
   const [showSaved, setShowSaved] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
+  // Itinerary state
+  const [view, setView] = useState("scout"); // "scout" | "itinerary"
+  const [itinerary, setItinerary] = useState([]); // [{ id, date, city, spots: [{ id, name, done }] }]
+  const [pickerDayId, setPickerDayId] = useState(null); // day awaiting a spot pick from saved list
   const resultRef = useRef(null);
   const STORAGE_KEY = "vlogScoutSavedPacks";
+  const ITIN_KEY = "vlogScoutItinerary";
 
   useEffect(() => {
     try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) setSaved(JSON.parse(raw)); } catch {}
+    try { const raw2 = localStorage.getItem(ITIN_KEY); if (raw2) setItinerary(JSON.parse(raw2)); } catch {}
   }, []);
 
   function persist(list) { setSaved(list); try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch {} }
+  function persistItin(list) { setItinerary(list); try { localStorage.setItem(ITIN_KEY, JSON.stringify(list)); } catch {} }
+
+  // Itinerary helpers
+  function addDay() {
+    const lastDate = itinerary.length ? new Date(itinerary[itinerary.length - 1].date) : new Date("2026-08-12");
+    const next = new Date(lastDate); if (itinerary.length) next.setDate(next.getDate() + 1);
+    const iso = next.toISOString().slice(0, 10);
+    persistItin([...itinerary, { id: Date.now(), date: iso, city: "", spots: [] }]);
+  }
+  function updateDay(id, patch) { persistItin(itinerary.map((d) => d.id === id ? { ...d, ...patch } : d)); }
+  function deleteDay(id) { persistItin(itinerary.filter((d) => d.id !== id)); }
+  function addSpotToDay(dayId, spotName) {
+    persistItin(itinerary.map((d) => d.id === dayId ? { ...d, spots: [...d.spots, { id: Date.now(), name: spotName, done: false }] } : d));
+    setPickerDayId(null);
+  }
+  function toggleSpotDone(dayId, spotId) {
+    persistItin(itinerary.map((d) => d.id !== dayId ? d : { ...d, spots: d.spots.map((s) => s.id === spotId ? { ...s, done: !s.done } : s) }));
+  }
+  function removeSpot(dayId, spotId) {
+    persistItin(itinerary.map((d) => d.id !== dayId ? d : { ...d, spots: d.spots.filter((s) => s.id !== spotId) }));
+  }
+  function openSpotFromItinerary(spotName) {
+    const matched = saved.find((p) => p.place === spotName);
+    if (matched) { openSaved(matched); setView("scout"); }
+    else { setLocation(spotName); setView("scout"); setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 100); }
+  }
+  function formatDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  }
 
   function savePack() {
     if (!pack) return;
@@ -313,12 +442,24 @@ export default function VlogScout() {
             <Camera size={30} strokeWidth={1.4} />
           </div>
           <p style={{ color: C.textDim, marginTop: 12, fontSize: 15, fontFamily: FONT_BODY, fontStyle: "italic" }}>Research the place. Write the script. Shoot it cold.</p>
-          {saved.length > 0 && (
-            <button onClick={() => setShowSaved(true)} className="vs-chip inline-flex items-center gap-2"
-              style={{ marginTop: 16, fontSize: 12, fontFamily: FONT_TYPE, color: C.gold, background: "transparent", border: `1px solid ${C.line}`, borderRadius: 999, padding: "6px 15px", cursor: "pointer", letterSpacing: "0.06em" }}>
-              <FolderOpen size={14} /> MY SCOUTED SPOTS · {saved.length}
-            </button>
-          )}
+          <div className="flex flex-wrap items-center justify-center gap-2" style={{ marginTop: 16 }}>
+            <div className="flex" style={{ background: C.cardSoft, border: `1px solid ${C.line}`, borderRadius: 999, padding: 3 }}>
+              <button onClick={() => setView("scout")} className="vs-chip inline-flex items-center gap-1.5"
+                style={{ fontSize: 11, fontFamily: FONT_TYPE, color: view === "scout" ? C.ink : C.textDim, background: view === "scout" ? C.gold : "transparent", border: "none", borderRadius: 999, padding: "5px 13px", cursor: "pointer", letterSpacing: "0.08em" }}>
+                <Compass size={12} /> SCOUT
+              </button>
+              <button onClick={() => setView("itinerary")} className="vs-chip inline-flex items-center gap-1.5"
+                style={{ fontSize: 11, fontFamily: FONT_TYPE, color: view === "itinerary" ? C.ink : C.textDim, background: view === "itinerary" ? C.gold : "transparent", border: "none", borderRadius: 999, padding: "5px 13px", cursor: "pointer", letterSpacing: "0.08em" }}>
+                <Calendar size={12} /> ITINERARY
+              </button>
+            </div>
+            {saved.length > 0 && (
+              <button onClick={() => setShowSaved(true)} className="vs-chip inline-flex items-center gap-2"
+                style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.gold, background: "transparent", border: `1px solid ${C.line}`, borderRadius: 999, padding: "6px 13px", cursor: "pointer", letterSpacing: "0.08em" }}>
+                <FolderOpen size={13} /> MY SPOTS · {saved.length}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Saved panel */}
@@ -348,6 +489,8 @@ export default function VlogScout() {
           </div>
         )}
 
+        {/* SCOUT VIEW */}
+        {view === "scout" && (<>
         {/* INPUT CARD */}
         <div style={{ background: C.card, borderRadius: 6, border: `1px solid ${C.line}`, padding: 26, position: "relative", boxShadow: "0 18px 44px rgba(0,0,0,.4)" }}>
           <div style={{ position: "absolute", inset: 7, border: `1px dashed ${C.lineSoft}`, borderRadius: 4, pointerEvents: "none" }} />
@@ -450,6 +593,7 @@ export default function VlogScout() {
 
                 <Section icon={<Mic2 size={17} />} title="Your script" accent={C.green} copy={fullScript} delay={160}>
                   <div style={{ background: C.cardSoft, borderRadius: 4, padding: 17, borderLeft: `3px solid ${C.green}`, border: `1px solid ${C.lineSoft}` }}>
+                    <ScriptReader text={fullScript} />
                     <div className="flex items-center justify-between mb-2">
                       <span className="inline-flex items-center gap-1" style={{ fontSize: 12, color: C.gold, fontFamily: FONT_TYPE, letterSpacing: "0.05em" }}><Clock size={12} /> {readTime}</span>
                       <button onClick={reroll} disabled={rerolling} className="vs-chip inline-flex items-center gap-1.5"
@@ -504,6 +648,114 @@ export default function VlogScout() {
                   {actionBtn(downloadAll, <Download size={15} />, "DOWNLOAD", C.green)}
                   {actionBtn(() => { setPack(null); setLocation(""); window.scrollTo({ top: 0, behavior: "smooth" }); }, <RotateCcw size={15} />, "NEW SCOUT", C.textDim)}
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+        </>)}
+
+        {/* ITINERARY VIEW */}
+        {view === "itinerary" && (
+          <div className="vs-reveal">
+            <div style={{ background: C.card, borderRadius: 6, border: `1px solid ${C.line}`, padding: 26, position: "relative", boxShadow: "0 18px 44px rgba(0,0,0,.4)" }}>
+              <div style={{ position: "absolute", inset: 7, border: `1px dashed ${C.lineSoft}`, borderRadius: 4, pointerEvents: "none" }} />
+              <div style={{ position: "relative" }}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <div style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.gold, letterSpacing: "0.16em" }}>EXPEDITION LOG</div>
+                    <h2 style={{ fontSize: 26, fontFamily: FONT_DISPLAY, color: C.text, margin: "4px 0 0", letterSpacing: "0.02em" }}>My Itinerary</h2>
+                  </div>
+                  <button onClick={addDay} className="vs-chip inline-flex items-center gap-2"
+                    style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.green, background: "transparent", border: `1px solid ${C.green}`, borderRadius: 4, padding: "8px 13px", cursor: "pointer", letterSpacing: "0.08em" }}>
+                    <CalendarPlus size={13} /> ADD DAY
+                  </button>
+                </div>
+
+                {itinerary.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "30px 12px", color: C.textFaint, fontFamily: FONT_BODY, fontStyle: "italic", fontSize: 15 }}>
+                    No days yet — tap <b style={{ color: C.green, fontStyle: "normal" }}>Add Day</b> to start planning your trip.
+                  </div>
+                ) : (
+                  <div className="grid gap-3">
+                    {itinerary.map((day, idx) => (
+                      <div key={day.id} style={{ background: C.cardSoft, border: `1px solid ${C.lineSoft}`, borderRadius: 4, padding: 16 }}>
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
+                          <div style={{ fontFamily: FONT_DISPLAY, color: C.gold, fontSize: 22, fontWeight: 700, letterSpacing: "0.04em" }}>DAY {idx + 1}</div>
+                          <input type="date" value={day.date || ""} onChange={(e) => updateDay(day.id, { date: e.target.value })}
+                            style={{ background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 4, padding: "5px 9px", fontFamily: FONT_TYPE, fontSize: 12, letterSpacing: "0.04em" }} />
+                          <input value={day.city} onChange={(e) => updateDay(day.id, { city: e.target.value })} placeholder="City or area"
+                            style={{ background: C.bg, color: C.text, border: `1px solid ${C.line}`, borderRadius: 4, padding: "5px 9px", fontFamily: FONT_BODY, fontSize: 14, flex: 1, minWidth: 120 }} />
+                          <button onClick={() => deleteDay(day.id)} title="Remove day" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer" }}><Trash2 size={15} /></button>
+                        </div>
+                        {day.date && <div style={{ fontSize: 12, color: C.textFaint, fontStyle: "italic", marginBottom: 8, fontFamily: FONT_BODY }}>{formatDate(day.date)}</div>}
+
+                        {/* Spots in this day */}
+                        <div className="grid gap-1.5" style={{ marginBottom: 10 }}>
+                          {day.spots.length === 0 && <div style={{ fontSize: 13, color: C.textFaint, fontStyle: "italic", fontFamily: FONT_BODY, padding: "4px 0" }}>No spots yet for this day.</div>}
+                          {day.spots.map((s) => (
+                            <div key={s.id} className="flex items-center gap-2" style={{ background: C.bg, border: `1px solid ${C.lineSoft}`, borderRadius: 4, padding: "8px 11px" }}>
+                              <button onClick={() => toggleSpotDone(day.id, s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: s.done ? C.green : C.textFaint, display: "flex" }}>
+                                {s.done ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                              </button>
+                              <button onClick={() => openSpotFromItinerary(s.name)} style={{ flex: 1, textAlign: "left", background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY, fontSize: 15, color: s.done ? C.textFaint : C.text, textDecoration: s.done ? "line-through" : "none" }}>
+                                {s.name}
+                              </button>
+                              {saved.find((p) => p.place === s.name) && (
+                                <span style={{ fontSize: 9, fontFamily: FONT_TYPE, letterSpacing: "0.1em", color: C.green, border: `1px solid ${C.green}`, borderRadius: 3, padding: "2px 6px" }}>SCOUTED</span>
+                              )}
+                              <button onClick={() => openSpotFromItinerary(s.name)} title="Open" style={{ background: "none", border: "none", color: C.gold, cursor: "pointer", display: "flex" }}><ChevronRight size={16} /></button>
+                              <button onClick={() => removeSpot(day.id, s.id)} title="Remove" style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", display: "flex" }}><X size={14} /></button>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Add-spot picker */}
+                        {pickerDayId === day.id ? (
+                          <div style={{ background: C.bg, border: `1px dashed ${C.line}`, borderRadius: 4, padding: 11 }}>
+                            <div style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.gold, letterSpacing: "0.08em", marginBottom: 6 }}>PICK A SPOT</div>
+                            {saved.length > 0 && (
+                              <div style={{ marginBottom: 9 }}>
+                                <div style={{ fontSize: 11, color: C.textFaint, fontStyle: "italic", marginBottom: 4 }}>From your scouted spots:</div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {saved.map((p) => (
+                                    <button key={p._id} onClick={() => addSpotToDay(day.id, p.place)} className="vs-chip"
+                                      style={{ fontSize: 12, padding: "4px 10px", borderRadius: 999, cursor: "pointer", fontFamily: FONT_BODY, border: `1px solid ${C.line}`, background: "transparent", color: C.green }}>
+                                      {p.place}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            <div style={{ fontSize: 11, color: C.textFaint, fontStyle: "italic", marginBottom: 4 }}>From trip mode:</div>
+                            <div className="flex flex-wrap gap-1.5" style={{ marginBottom: 9 }}>
+                              {TRIP_STOPS.flatMap((g) => g.spots).map((s) => (
+                                <button key={s} onClick={() => addSpotToDay(day.id, s)} className="vs-chip"
+                                  style={{ fontSize: 12, padding: "4px 10px", borderRadius: 999, cursor: "pointer", fontFamily: FONT_BODY, border: `1px solid ${C.line}`, background: "transparent", color: C.textDim }}>{s}</button>
+                              ))}
+                            </div>
+                            <div className="flex gap-2 items-center">
+                              <input id={`custom-${day.id}`} placeholder="Or type any place name…" onKeyDown={(e) => {
+                                if (e.key === "Enter" && e.target.value.trim()) { addSpotToDay(day.id, e.target.value.trim()); e.target.value = ""; }
+                              }} style={{ flex: 1, background: C.cardSoft, color: C.text, border: `1px solid ${C.line}`, borderRadius: 4, padding: "6px 10px", fontFamily: FONT_BODY, fontSize: 14 }} />
+                              <button onClick={() => setPickerDayId(null)} style={{ background: "none", border: "none", color: C.textFaint, cursor: "pointer", fontSize: 12, fontFamily: FONT_TYPE, letterSpacing: "0.08em" }}>CANCEL</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button onClick={() => setPickerDayId(day.id)} className="vs-chip inline-flex items-center gap-1.5"
+                            style={{ fontSize: 11, fontFamily: FONT_TYPE, color: C.gold, background: "transparent", border: `1px dashed ${C.line}`, borderRadius: 4, padding: "6px 11px", cursor: "pointer", letterSpacing: "0.08em" }}>
+                            + ADD SPOT
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {itinerary.length > 0 && (
+                  <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px dashed ${C.line}`, fontSize: 12, color: C.textFaint, fontFamily: FONT_BODY }}>
+                    Tap a spot to open its prep pack. Tap the circle to mark it filmed.
+                  </div>
+                )}
               </div>
             </div>
           </div>
